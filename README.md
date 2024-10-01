@@ -1,13 +1,17 @@
-# Creating a Nuxt project in AWS Amplify to send request to Open AI
+Here's the corrected version of your README with spelling and grammar fixes:
+
+---
+
+# Creating a Nuxt project in AWS Amplify to send requests to OpenAI
 
 ### Creating the Nuxt project
-To create the project
+To create the project:
 
 ```bash
 npx nuxi@latest init <project-name>
 ```
 
-To push to github
+To push to GitHub:
 
 ```bash
 cd /path/to/<project-name>
@@ -19,45 +23,37 @@ git push -u origin main
 ```
 
 ### Deploying the site using Amplify
-Nothing special to do, just follow the steps explained in https://nuxt.com/deploy/aws-amplify
+Nothing special to do, just follow the steps explained in [https://nuxt.com/deploy/aws-amplify](https://nuxt.com/deploy/aws-amplify).
 
 ### Adding Amplify for the backend
-Assuming Amplify is already installed and setup done.
+Assuming Amplify is already installed and set up.
 
-Initialise Amplify for the project
+Initialize Amplify for the project:
 
 ```bash
-npm create amplify@latest.
+npm create amplify@latest
 ```
 
-### Creating a shcema for OpenAI request
-Next step is to create a new GraphQL schema for Open AI request.
-Instead of using a resolver (i.e. a function that will be called when the GraphQL end-point is called to return the data),
-we will do something smarther that do not suffer from the 30s GraphQL limits.
+### Creating a schema for OpenAI requests
+The next step is to create a new GraphQL schema for OpenAI requests.
+Instead of using a resolver (i.e., a function that will be called when the GraphQL endpoint is triggered to return the data), we will do something smarter that does not suffer from the 30-second GraphQL limits.
 
-The call to the API, will post the data for the Open AI query, and return with an ID.
-The request data is stored in the DynamoDb table.
-Then a trigger will be called in the backend to process the query with Open AI, this lambda function can have
-a long timeout, as it is not bounded by the limit of the GraphQL request time.
-Once the lambda receives the response it updates the DynamoDB table.
-Then the front-end can be notified that the data was updated, and fetch the result returned by OpenAI
+The call to the API will post the data for the OpenAI query and return with an ID. The request data is stored in the DynamoDB table. Then, a trigger will be called in the backend to process the query with OpenAI. This Lambda function can have a long timeout as it is not bound by the limit of the GraphQL request time. Once the Lambda receives the response, it updates the DynamoDB table. Then the front-end can be notified that the data was updated and fetch the result returned by OpenAI.
 
-This is inspired from [dynamo-db-stream](https://docs.amplify.aws/vue/build-a-backend/functions/examples/dynamo-db-stream/)
+This is inspired by [dynamo-db-stream](https://docs.amplify.aws/vue/build-a-backend/functions/examples/dynamo-db-stream/).
 
-
-First step install a few needed depdencies
+#### Install a few needed dependencies
 ```bash
 npm add --save-dev @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb @types/aws-lambda aws-cdk-lib
 ```
 
-The update the shema for the GraphQL Query (`amplify/data/resource.ts`)
+Then update the schema for the GraphQL Query (`amplify/data/resource.ts`):
 
 ```javascript
 import type { ClientSchema } from "@aws-amplify/backend";
 import { a, defineData } from "@aws-amplify/backend";
 
 const schema = a.schema({
-
   OpenAIUsage: a.customType({
     prompt_tokens: a.integer(),
     completion_tokens: a.integer(),
@@ -90,7 +86,8 @@ export const data = defineData({
 });
 ```
 
-Then add the lambda codes (`amplify/functions/dynamodb-open-ai-trigger/handler.ts`)
+#### Adding the Lambda code
+Create the handler for the lamnbda (`amplify/functions/dynamodb-open-ai-trigger/handler.ts`):
 
 ```javascript
 import type { DynamoDBStreamHandler } from "aws-lambda";
@@ -106,10 +103,6 @@ import { env } from "$amplify/env/dynamodb-open-ai-trigger";
 export const handler: DynamoDBStreamHandler = async (event) => {
   const apiKey = env.OPENAI_API_KEY;
 
-  /**
-   * @param {object} body
-   * @returns {Promise<any>}
-   */
   const request = async (body: object): Promise<any> => {
     const END_POINT = "https://api.openai.com/v1/chat/completions";
 
@@ -126,7 +119,6 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 
   await Promise.all(
     event.Records.map(async (record) => {
-
       if (record.eventName === "INSERT") {
         const tableName = record.eventSourceARN?.split("/")[1];
         const key = record.dynamodb?.Keys?.id?.S;
@@ -136,8 +128,7 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 
         const temperature = Number(env.OPENAI_TEMPERATURE) || 0.7;
 
-        const max_tokens =
-          Number(row.token?.N) || Number(env.OPENAI_MAX_TOKEN) || 50;
+        const max_tokens = Number(row.token?.N) || Number(env.OPENAI_MAX_TOKEN) || 50;
 
         const format = row.format?.S || "json";
         const model = row.model?.S || env.OPENAI_MODEL || "gpt-4o-mini";
@@ -163,7 +154,6 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 
         let data = await request(body);
 
-        // write the result into the table
         if (data.error) {
           data.choices = [
             {
@@ -197,8 +187,11 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 };
 ```
 
-Create the resource info (`amplify/functions/dynamodb-open-ai-trigger/resource.ts`).
-This provide default value and, the API key stored as a secret in amplify
+#### Create the resource info
+Together with the handler, the resouse also needs to be declared.
+(`amplify/functions/dynamodb-open-ai-trigger/resource.ts`).
+
+This provides default values and stores the API key as a secret in Amplify:
 
 ```javascript
 import { defineFunction, secret } from "@aws-amplify/backend";
@@ -215,7 +208,7 @@ export const dynamoDBAITrigger = defineFunction({
 });
 ```
 
-Finally, updade the backend definition file, to enable the trigger
+#### Update the backend definition file to enable the trigger
 
 ```javascript
 import { defineBackend } from "@aws-amplify/backend";
@@ -275,13 +268,26 @@ backend.data.resources.cfnResources.amplifyDynamoDbTables[
 };
 ```
 
+### Configure the build for the backend
+Update the `amplify.yml` or directly in Amplify:
+
+```yml
+backend:
+  phases:
+    build:
+      commands:
+        - "npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID"
+```
+
+The last part is going to the Amplify console and setting the secret for the `OPENAI_API_KEY`. This can be found under Hosting -> Secrets.
+
 ### Making the call from the front-end
-The last part is to use the GraphGL query to trigger and get the response.
-The code bellow uses active check to see if there is an answer, with a maximum
-waiting time of 5min
+The last part is to use the GraphQL query to trigger and get the response. The code below uses an active check to see if there is an answer, with a maximum waiting time of 5 minutes:
 
 ```javascript
-import { Amplify } from 'aws-amplify';
+import { Amplify } from '
+
+aws-amplify';
 import outputs from './amplify_outputs.json';
 Amplify.configure(outputs);
 
@@ -314,3 +320,5 @@ while (totalWaitTime < 300 * 1000) {
     }
 }
 ```
+
+And here you go, OpenAI API request without time limits.
